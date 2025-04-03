@@ -143,3 +143,109 @@ for (file in file_list) {
   gc()
 }
 ```
+
+## Borcherding Cohort
+
+### Directory Setup
+
+```{r}
+# Define directories
+qc_dir <- "./qc"
+input_dir <- "./inputs/supplemental/additionalCohorts/Borcherding2024/"
+output_dir <- "./output/"
+processed_dir <- "./inputs/supplemental/processedData/Borcherding/"
+
+# Create directories if they do not exist
+dir.create(qc_dir, showWarnings = FALSE)
+dir.create(output_dir, showWarnings = FALSE)
+dir.create(processed_dir, showWarnings = FALSE)
+```
+
+### Processing Sequencing Runs
+
+```{r  message=FALSE, warning=FALSE, eval = FALSE}
+# Setup
+dir.create("./qc", showWarnings = FALSE)
+file_list <- list.files("./inputs/supplemental/additionalCohorts/Borcherding2024", full.names = FALSE) 
+
+# Main processing loop
+for (file in file_list) {
+  message("Processing ", file)
+  
+  # 1. Read Data and Create Seurat Object
+  tmp <- Read10X(paste0(input_dir, file, "/filtered_feature_bc_matrix"))
+  
+  SeuratObj <- CreateSeuratObject(counts = tmp, 
+                                  assay = "RNA", 
+                                  project = file) 
+  
+  # Remove tmp to free up memory
+  rm(tmp)
+  
+  # 2. Calculate QC Metrics and Rename Cells
+  SeuratObj <- calculate_qc_metrics(SeuratObj) %>%
+    subset(subset = nFeature_RNA > 100) # Filter out low feature cells early
+  SeuratObj <- RenameCells(SeuratObj, new.names = 
+                             paste0(file, "_", colnames(SeuratObj)))
+
+  # 3. Plot QC Metrics
+  plot_qc_metrics(SeuratObj, file)
+
+  # 4. Filter Cells
+  SeuratObj <- filter_cells(SeuratObj, file)
+
+  # 5. Estimate Doublets
+  sce <- as.SingleCellExperiment(SeuratObj)
+  sce <- scDblFinder(sce)
+  doublets <- data.frame(db.class = sce$scDblFinder.class, 
+                         db.score = sce$scDblFinder.score)
+  rownames(doublets) <- rownames(sce@colData)
+  SeuratObj <- AddMetaData(SeuratObj, doublets)
+
+  # 6. Azimuth Annotation
+  AzAnnotation <- RunAzimuth(SeuratObj, reference = "pbmcref", verbose = FALSE)
+  SeuratObj <- AddMetaData(SeuratObj, AzAnnotation[[]])
+  
+  # 7. SingleR Annotation
+  SeuratObj <- AddMetaData(SeuratObj, 
+                           annotate_with_singler(sce, HPCA, "HPCA"))
+  SeuratObj <- AddMetaData(SeuratObj, 
+                           annotate_with_singler(sce, Monaco, "Monaco"))
+  
+  rm(sce)
+
+  # 8. Add Clonal Information
+  TCR.file <- list.files(paste0("./inputs/supplemental/additionalCohorts/Borcherding2024/", 
+                                file), pattern = "annotations")[1]
+  TCR.file <- read.csv(paste0("./inputs/supplemental/additionalCohorts/Borcherding2024/", 
+                              file, "/", TCR.file))
+  combinedTCR <- combineTCR(TCR.file, 
+                            samples = file, 
+                            filterMulti = TRUE)
+
+
+  SeuratObj <- combineExpression(combinedTCR, 
+                                 SeuratObj, 
+                                 cloneCall = "strict", 
+                                 proportion = TRUE)
+
+  # 9. scGate Filtering
+  suppressWarnings({
+    scGateModelDb <- get_scGateDB("data/scGateDB") 
+  })
+  DefaultAssay(SeuratObj) <- "RNA"
+  SeuratObj <- scGate(SeuratObj,
+                      slot = "counts", 
+                      scGateModelDb$human$generic)
+
+  cells.to.keep <- which(SeuratObj$is.pure_Tcell == "Pure" )
+  clones.recovered <- which(!is.na(SeuratObj$CTaa))
+  cells.to.keep <- intersect(cells.to.keep, clones.recovered)
+  SeuratObj <- subset(SeuratObj, cells = colnames(SeuratObj)[cells.to.keep])
+
+  # 10. Save Preliminary Seurat Object
+  saveRDS(SeuratObj, paste0("./inputs/supplemental/processedData/Borcherding", file, ".rds"))
+  rm(SeuratObj)
+  gc()
+}
+```
