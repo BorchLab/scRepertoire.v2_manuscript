@@ -398,45 +398,56 @@ object.merge <- object.merge %>%
                 reduction = "harmony", 
                 verbose = FALSE) %>%
   FindClusters(algorithm = 4, 
-               resolution = 0.6,
+               resolution = 0.4,
                verbose = FALSE)
 
 # 4. Defining Cell Types By Cluster
-cluster.types <- c("CD4_TCM/Naive", 
-                   "CD4_T1_Inf_Stimulated", 
-                   "CD4_TH17", 
-                   "CD8_Exhausted", 
-                   "CD4_Treg", 
-                   "CD8_TEM",
-                   "CD8_CTL", 
-                   "B Cells", 
-                   "CD8_TCM/Naive", 
-                   "CD4/CD8_Proliferating", 
-                   "MAIT", 
-                   "Plasma_Cell", 
-                   "CD4_TEM", 
-                   "Plasma_Cell", 
-                   "CD4_TEM")
-cluster.types <- setNames(cluster.types, as.character(1:15))
-object.merge$Cluster_Types <- recode(as.character(object.merge$seurat_clusters),
-                                     !!!cluster.types)
+#cluster.types <- c("CD4_TCM/Naive", 
+#                   "CD4_T1_Inf_Stimulated", 
+#                   "CD4_TH17", 
+#                   "CD8_Exhausted", 
+#                   "CD4_Treg", 
+#                   "CD8_TEM",
+#                   "CD8_CTL", 
+#                   "B Cells", 
+#                   "CD8_TCM/Naive", 
+#                   "CD4/CD8_Proliferating", 
+#                   "MAIT", 
+#                   "Plasma_Cell", 
+#                   "CD4_TEM", 
+#                   "Plasma_Cell", 
+#                   "CD4_TEM")
+#cluster.types <- setNames(cluster.types, as.character(1:15))
+#object.merge$Cluster_Types <- recode(as.character(object.merge$seurat_clusters),
+#                                     !!!cluster.types)
 
-# 5. Defining Tissue Type 
-object.merge$Tissue <- ifelse(grepl("Aqueous", object.merge$orig.ident), "Eye", "PBMC")
+# 5. Adding epitope-specific sequences
+#----------------------------------------
+# Spike 167–180 Epitope Matching
+#----------------------------------------
 
-# 6. Adding patient information
-object.merge$Patient <- str_split(object.merge$orig.ident, "_", simplify = TRUE)[,1]
+# Load known specific TCR sequences for the S167-180 epitope
+seq_167_180 <- read.csv("./inputs/supplemental/Spike.Epitope.Sequences.csv")
 
-# 7. Adding pathogenic T cell annotation
-TRB <- str_split(object.merge$CTaa, "_", simplify = TRUE)[,2]
-TRB.index <- grep("SYST|TYST|TFST|YYST|GYST|LYST", TRB)
-TRA.index <- grep("TRAV21", object.merge$CTgene) #Must Contain TRAV21
+# Split CTaa column into alpha and beta chains
+CTaa <- as.data.frame(str_split(object.merge$CTaa, "_", simplify = TRUE))
+colnames(CTaa) <- c("CDR3a", "CDR3b")
 
-pathogenic.cells <- intersect(TRA.index, TRB.index)
+# Match to known sequences
+match_alpha_167 <- which(CTaa$CDR3a %in% seq_167_180$cdr3a)
+match_beta_167  <- which(CTaa$CDR3b %in% seq_167_180$cdr3b)
 
-object.merge$pathogenic.cells <- "No"
-object.merge$pathogenic.cells[pathogenic.cells] <- "Yes"
+# Annotate specificity
+object.merge$TCRA.S167.180 <- NA
+object.merge$TCRA.S167.180[match_alpha_167] <- "Specific"
+
+object.merge$TCRB.S167.180 <- NA
+object.merge$TCRB.S167.180[match_beta_167] <- "Specific"
+
+object.merge$Spike.Specific <- "No"
+object.merge$Spike.Specific[grep("Specific", object.merge$TCRB.S167.180)] <- "Yes"
+object.merge$Spike.Specific[grep("Specific", object.merge$TCRA.S167.180)] <- "Yes"
 
 # Save final integrated object
-saveRDS(object.merge, "./output/data/Supplemental_PaleyCohort.rds")
+saveRDS(object.merge, "./output/data/Supplemental_BorcherdingCohort.rds")
 ```
