@@ -225,25 +225,50 @@ saveRDS(object.merge, "./output/data/Supplemental_PaleyCohort.rds")
 ### Visualizations
 
 ```{r}
+object.merge <- readRDS("./output/data/Supplemental_PaleyCohort.rds")
 
 CellDimPlot(object.merge, 
             group_by = "seurat_clusters",
             reduction = "umap.harmony",
             label_insitu = TRUE,
             pt.size = 0.1,
+            show_stat = FALSE,
             label = TRUE,
             raster = FALSE) + 
   guides(color = "none") + 
   theme_void()
+ggsave("output/viz/SupplementalFig2A.png", height = 3, width = 3.5, dpi = 600)
 
 CellDimPlot(object.merge, 
             group_by = "seurat_clusters",
             reduction = "umap.harmony",
   highlight = 'pathogenic.cells == "Yes"',
   raster = FALSE,
-  theme = "theme_blank"
-)
-ggsave("output/viz/UMAP_PathogenicCells.png", height = 4, width = 5, dpi = 300)
+  show_stat = FALSE)+ 
+  guides(color = "none") + 
+  theme_void()
+ggsave("output/viz/SupplementalFig2B_1.png", height = 3, width = 3.5, dpi = 600)
+
+CellStatPlot(object.merge, 
+             group_by = "pathogenic.cells", 
+             frac = "group",
+             swap = TRUE, 
+             position = "stack") + 
+  guides(fill = "none")
+ggsave("output/viz/SupplementalFig2B_2.pdf", height = 3, width = 2,)
+
+CellStatPlot(object.merge, 
+             ident = "Patient",  
+             group_by = "pathogenic.cells", 
+             frac = "group",
+             swap = TRUE, 
+             position = "stack") + 
+  guides(fill = "none")
+
+positionalProperty(object.merge, 
+          group.by = "pathogenic.cells",
+          chain = "TRB", 
+          aa.length = 20)
 
 # Conventional T Cell Markers
 genes <- c("CD4", "CD8A", "CCR7", "SELL",  "CD28", 
