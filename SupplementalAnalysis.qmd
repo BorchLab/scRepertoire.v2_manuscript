@@ -10,7 +10,7 @@ editor: visual
 # Define required libraries
 packages <- c(
   "Azimuth", "BiocParallel", "celldex", "dplyr", "ggplot2", 
-  "ggthemes", "harmony", "igraph", "patchwork", "RColorBrewer", 
+  "ggthemes", "harmony", "igraph", "patchwork", "RColorBrewer",
   "scDblFinder", "scGate", "scRepertoire", "scran", "Seurat", 
   "SeuratData", "SingleR", "stringr", "viridis"
 )
@@ -237,7 +237,19 @@ CellDimPlot(object.merge,
             raster = FALSE) + 
   guides(color = "none") + 
   theme_void()
-ggsave("output/viz/SupplementalFig2A.png", height = 3, width = 3.5, dpi = 600)
+ggsave("output/viz/SupplementalFig2B.png", height = 3, width = 3.5, dpi = 600)
+
+# Conventional T Cell Markers
+genes <- c("CD4", "CD8A", "CCR7", "SELL",  
+            "FOXP3", "IL2RA", "PRF1", "MKI67")
+
+FeaturePlot(object.merge, 
+            ncol = 4,
+            pt.size = 0.1,
+            raster = FALSE,
+            feature = genes) & scale_color_viridis() & theme_void() & guides(color = "none") 
+ggsave("output/viz/SupplementalFig2C.png", height = 3, width = 7, dpi = 600)
+
 
 CellDimPlot(object.merge, 
             group_by = "seurat_clusters",
@@ -247,7 +259,7 @@ CellDimPlot(object.merge,
   show_stat = FALSE)+ 
   guides(color = "none") + 
   theme_void()
-ggsave("output/viz/SupplementalFig2B_1.png", height = 3, width = 3.5, dpi = 600)
+ggsave("output/viz/SupplementalFig2D_1.png", height = 3, width = 3.5, dpi = 600)
 
 CellStatPlot(object.merge, 
              group_by = "pathogenic.cells", 
@@ -255,7 +267,7 @@ CellStatPlot(object.merge,
              swap = TRUE, 
              position = "stack") + 
   guides(fill = "none")
-ggsave("output/viz/SupplementalFig2B_2.pdf", height = 3, width = 2,)
+ggsave("output/viz/SupplementalFig2D_2.pdf", height = 3, width = 2,)
 
 CellStatPlot(object.merge, 
              ident = "Patient",  
@@ -265,21 +277,13 @@ CellStatPlot(object.merge,
              position = "stack") + 
   guides(fill = "none")
 
-positionalProperty(object.merge, 
-          group.by = "pathogenic.cells",
-          chain = "TRB", 
-          aa.length = 20)
 
-# Conventional T Cell Markers
-genes <- c("CD4", "CD8A", "CCR7", "SELL",  "CD28", 
-                              "CD44", "CD69", "CTLA4", "CXCR3", 
-                              "FOXP3", "GZMB", "IL2RA", "IL7R", 
-                            "KLRB1", "PDCD1", "PRF1", "CTLA4", "PDCD1", "CD69", "MKI67")
-
-
-FeaturePlot(object.merge, 
-                feature = genes) & scale_color_viridis() & theme_void() & guides(color = "none")
-#ggsave("output/viz/Tmarkers_UMAP.png", height = 12, width = 16, dpi = 300)
+StartracDiversity(object.merge, 
+                  type = "Tissue", 
+                  group.by = "Patient") + 
+  scale_fill_manual(values = colorRampPalette(brewer.pal(12, "Paired"))(14))
+ggsave("output/viz/SupplementalFig2E.pdf", height = 3, width = 4)
+ 
 ```
 
 ## Borcherding Cohort
