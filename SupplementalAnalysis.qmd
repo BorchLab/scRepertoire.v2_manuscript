@@ -9,10 +9,7 @@ editor: visual
 ```{r message=FALSE, warning=FALSE, echo=T, results='hide'}
 # Define required libraries
 packages <- c(
-  "Azimuth", "BiocParallel", "celldex", "dplyr", "ggplot2", 
-  "ggthemes", "harmony", "igraph", "patchwork", "RColorBrewer",
-  "scDblFinder", "scGate", "scRepertoire", "scran", "Seurat", 
-  "SeuratData", "SingleR", "stringr", "viridis"
+  "Azimuth", "BiocParallel", "celldex", "dplyr", "ggplot2", "ggthemes", "harmony", "igraph", "patchwork", "RColorBrewer", "scDblFinder", "scGate", "scRepertoire", "scran", "scplotter", "Seurat", "SeuratData", "SingleR", "stringr", "Trex", "viridis"
 )
 
 # Suppress startup messages
@@ -508,4 +505,30 @@ percentAA(object.merge,
   guides(fill = "none")
 ggsave("output/viz/SupplementalFig3E.pdf", height = 3, width = 5)
 
+TRA.AF <- maTrex(object.merge, 
+                 chains = "TRA", 
+                 encoder.model = "AE")
+TRA.AF <- merge(TRA.AF, object.merge[[]], by = 0)
+
+pca.data <- TRA.AF[,2:31] %>%
+  prcomp(scale. = TRUE, center = TRUE)
+
+# Add PCA results back to TRA.AF
+TRA.AF$PC1 <- pca.data$x[, 1]
+TRA.AF$PC2 <- pca.data$x[, 2]
+
+# Make sure Spike.Specific is logical or factor for shape/aesthetic distinction
+TRA.AF$Spike.Specific <- as.factor(TRA.AF$Spike.Specific)
+
+# Plot
+ggplot(TRA.AF, aes(x = PC1, y = PC2, color = Time, shape = Spike.Specific)) +
+  geom_point(size = 3, alpha = 0.8) +
+  scale_shape_manual(values = c(16, 17)) +  # change shape if needed
+  theme_minimal() +
+  facet_wrap(~Time) + 
+  scale_color_viridis(option = "inferno", discrete = TRUE) + 
+  labs(title = "PCA of TRA.AF",
+       x = "PC1",
+       y = "PC2",
+       shape = "Spike Specific")
 ```
