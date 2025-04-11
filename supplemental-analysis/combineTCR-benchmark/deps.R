@@ -1,4 +1,4 @@
-box::use(data.table[fread])
+library(data.table)
 
 #' @export
 get_datasets <- function() {
