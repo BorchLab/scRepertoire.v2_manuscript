@@ -1,6 +1,6 @@
-library(bench)
-library(data.table)
+box::use(data.table[fread])
 
+#' @export
 get_datasets <- function() {
     datasets <- lapply(list.files("datasets/", full.names = TRUE), \(file) {
         fread(file, data.table = FALSE)
@@ -9,8 +9,9 @@ get_datasets <- function() {
     datasets[order(as.integer(names(datasets)))]
 }
 
-# assuming b is a benchmark result for a single expression,
-# return a 1 row data.frame of the results
+#' assuming b is a benchmark result for a single expression,
+#' return a 1 row data.frame of the results
+#' @export
 get_bench_record <- function(b) {
     data.frame(
         min = as.character(b$min),
@@ -32,3 +33,5 @@ get_bench_record <- function(b) {
         gc2_max = max(b$gc[[1]]$level2)
     )
 }
+
+# TODO make get_bench_record_df
