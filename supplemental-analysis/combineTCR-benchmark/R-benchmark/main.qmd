@@ -1,0 +1,103 @@
+```{r}
+setwd("supplemental-analysis/combineTCR-benchmark/R-benchmark")
+source(".Rprofile")
+
+suppressPackageStartupMessages({
+
+# dependencies
+library(magrittr)
+library(bench)
+library(data.table)
+library(purrr)
+library(logger)
+
+# load all packages to benchmark
+library(scRepertoire1)
+library(scRepertoire)
+library(immunarch)
+
+# TODO: platypus
+
+})
+```
+
+```{r}
+# create list of TCR data loader functions to be benchmarked
+processors <- list(
+    # scRepertoire1 = function(dataset_folder) {
+    #     scRepertoire1::combineTCR(scRepertoire1::loadContigs(dataset_folder))
+    # },
+    scRepertoire2 = function(dataset_folder) {
+        scRepertoire::combineTCR(scRepertoire::loadContigs(dataset_folder))
+    }
+    # immunarch = function(dataset_folder) {
+    #     immunarch::repLoad(paste0(dataset_folder, "/filtered_contig_annotations.csv"),)
+    # }
+)
+
+DATASET_DIR <- "../datasets/"
+
+#' assuming b is a bench::mark result for a single expression,
+#' return a 1 row data.frame of the results
+get_bench_record <- function(b) {
+    data.frame(
+        min = as.character(b$min),
+        median = as.character(b$median),
+        # num_iter = b$n_itr,
+        mem_alloc = as.character(b$mem_alloc),
+        num_gc = b$n_gc,
+        gc0_mean = mean(b$gc[[1]]$level0),
+        gc0_median = median(b$gc[[1]]$level0),
+        gc0_min = min(b$gc[[1]]$level0),
+        gc0_max = max(b$gc[[1]]$level0),
+        gc1_mean = mean(b$gc[[1]]$level1),
+        gc1_median = median(b$gc[[1]]$level1),
+        gc1_min = min(b$gc[[1]]$level1),
+        gc1_max = max(b$gc[[1]]$level1),
+        gc2_mean = mean(b$gc[[1]]$level2),
+        gc2_median = median(b$gc[[1]]$level2),
+        gc2_min = min(b$gc[[1]]$level2),
+        gc2_max = max(b$gc[[1]]$level2)
+    )
+}
+```
+
+```{r}
+ITERATIONS <- 10L
+dataset_paths <- list.dirs("../datasets", full.names = TRUE, recursive = FALSE) %>%
+    .[order(as.numeric(gsub(".*/", "", .)))] #%>% .[1:2] # comment out for full benchmark
+
+for (i in seq_along(processors)) { # TODO scRepertoire 1 might not be getting profiled correctly.
+    
+    logger::log_info("Starting Benchmarking of {names(processors)[i]}")
+
+    benchmark_results <- # essentially bench::press()
+        purrr::map(dataset_paths, ~ {
+
+            #gc(verbose = FALSE)
+            dataset_size <- as.integer(strsplit(., "/")[[1]][3])
+            processor <- processors[[i]]
+
+            logger::log_info("Benchmarking dataset size {dataset_size}")
+
+            benchmark_result <- suppressMessages(suppressWarnings( # TODO: possibly need a tryCatch for out of memory errors
+                bench::mark(
+                    processor(.), 
+                    min_iterations = ITERATIONS, max_iterations = ITERATIONS
+                )
+            ))
+
+            benchmark_record <- get_bench_record(benchmark_result)
+
+            benchmark_record %>%
+                dplyr::mutate(dataset_size = dataset_size) %>%
+                dplyr::relocate(dataset_size)
+
+        }) %>%
+        dplyr::bind_rows()
+    
+    output_filename <- paste0("../results/", names(processors)[i], ".csv")
+    fwrite(benchmark_results, output_filename)
+    logger::log_info("Completed Benchmarking of {names(processors)[i]}")
+}
+```
