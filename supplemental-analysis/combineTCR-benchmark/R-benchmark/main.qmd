@@ -24,12 +24,12 @@ library(immunarch)
 ```{r}
 # create list of TCR data loader functions to be benchmarked
 processors <- list(
-    # scRepertoire1 = function(dataset_folder) {
-    #     scRepertoire1::combineTCR(scRepertoire1::loadContigs(dataset_folder))
-    # },
-    scRepertoire2 = function(dataset_folder) {
-        scRepertoire::combineTCR(scRepertoire::loadContigs(dataset_folder))
-    }
+    scRepertoire1 = function(dataset_folder) {
+        scRepertoire1::combineTCR(scRepertoire1::loadContigs(dataset_folder))
+    }#,
+    # scRepertoire2 = function(dataset_folder) {
+    #     scRepertoire::combineTCR(scRepertoire::loadContigs(dataset_folder))
+    # }
     # immunarch = function(dataset_folder) {
     #     immunarch::repLoad(paste0(dataset_folder, "/filtered_contig_annotations.csv"),)
     # }
