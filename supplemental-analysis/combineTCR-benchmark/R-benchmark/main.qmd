@@ -21,6 +21,7 @@ suppressPackageStartupMessages({
 library(scRepertoire1)
 library(scRepertoire)
 library(immunarch)
+library(Platypus)
 
 })
 
@@ -32,9 +33,12 @@ processors <- list(
     # scRepertoire2 = function(dataset_folder) {
     #     scRepertoire::combineTCR(scRepertoire::loadContigs(dataset_folder))
     # }#,
-    immunarch = function(dataset_folder) {
-        immunarch::repLoad(paste0(dataset_folder, "/filtered_contig_annotation.csv"))
-    }
+    # immunarch = function(dataset_folder) {
+    #     immunarch::repLoad(paste0(dataset_folder, "/filtered_contig_annotation.csv"))
+    # }#,
+    # platypus = function(dataset_folder) {
+    #     Platypus::
+    # }
 )
 
 ```
@@ -93,56 +97,6 @@ calc_mean_conf_interval <- function(x, s = sd(x), lvl = 0.95) {
 ITERATIONS <- 10L
 dataset_paths <- list.dirs("../datasets", full.names = TRUE, recursive = FALSE) %>%
     .[order(as.numeric(gsub(".*/", "", .)))] #%>% .[1:2]
-
-for (i in seq_along(processors)) { # TODO scRepertoire 1 might not be getting profiled correctly.
-    
-    logger::log_info("Starting Benchmarking of {names(processors)[i]}")
-    processor <- processors[[i]]
-    benchmark_results <- data.frame()
-
-    for (dataset_path in dataset_paths) {
-        #gc(verbose = FALSE)
-        dataset_size <- as.integer(strsplit(dataset_path, "/")[[1]][3])
-        logger::log_info("Benchmarking dataset size {dataset_size}")
-
-        benchmark_result <- suppressMessages(suppressWarnings( # TODO: possibly need a tryCatch for out of memory errors
-            bench::mark(
-                processor(dataset_path),
-                min_iterations = ITERATIONS, max_iterations = ITERATIONS
-            )
-        ))
-
-        benchmark_record <-
-            get_bench_record(benchmark_result) %>%
-            dplyr::mutate(dataset_size = dataset_size) %>%
-            dplyr::relocate(dataset_size)
-
-        benchmark_results %<>% rbind(benchmark_record)
-        output_filename <- paste0("../results/", names(processors)[i], ".csv")
-        data.table::fwrite(benchmark_results, output_filename)
-    }
-    
-    logger::log_info("Completed Benchmarking of {names(processors)[i]}")
-}
-```
-
-
-```{r}
-processors <- list(
-    # scRepertoire1 = function(dataset_folder) {
-    #     scRepertoire1::combineTCR(scRepertoire1::loadContigs(dataset_folder))
-    # },
-    # scRepertoire2 = function(dataset_folder) {
-    #     scRepertoire::combineTCR(scRepertoire::loadContigs(dataset_folder))
-    # }#,
-    immunarch2 = function(dataset_folder) {
-        immunarch::repLoad(paste0(dataset_folder, "/filtered_contig_annotation.csv"))
-    }
-)
-
-ITERATIONS <- 10L
-dataset_paths <- list.dirs("../datasets", full.names = TRUE, recursive = FALSE) %>%
-    .[order(as.numeric(gsub(".*/", "", .)))] %>% .[(length(.)-1):length(.)]
 
 for (i in seq_along(processors)) { # TODO scRepertoire 1 might not be getting profiled correctly.
     
