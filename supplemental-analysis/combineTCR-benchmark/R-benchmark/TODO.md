@@ -5,4 +5,5 @@
     - dandelionR uses scRepertoire's combineTCR
 - [x] immunarch
 - [ ] Platypus
+    - needs clonotypes.csv and concat_ref.fasta
 - [ ] Immcantation (R)
