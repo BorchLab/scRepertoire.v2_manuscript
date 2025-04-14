@@ -1,0 +1,4 @@
+dataset_size,min,median,mean,max,sd,ci95,mem_alloc,peak_mem_alloc,num_gc,gc0_mean,gc0_median,gc0_min,gc0_max,gc1_mean,gc1_median,gc1_min,gc1_max,gc2_mean,gc2_median,gc2_min,gc2_max
+30000,28.2s,28.2s,28.2s,28.2s,,NA,207MB,,14,14,14,14,14,0,0,0,0,0,0,0,0
+60000,41.6s,41.6s,41.6s,41.6s,,NA,344MB,,24,23,23,23,23,1,1,1,1,0,0,0,0
+100000,57.8s,57.8s,57.8s,57.8s,,NA,519MB,,36,34,34,34,34,2,2,2,2,0,0,0,0
