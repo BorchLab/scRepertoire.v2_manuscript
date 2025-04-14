@@ -50,6 +50,9 @@ processors <- list(
     #         filter.overlapping.barcodes.VDJ = FALSE,
     #         get.VDJ.stats = FALSE
     #     )
+    # }#,
+    # Immcantation = function(dataset_folder) {
+    # # TODO
     # }
 )
 
@@ -108,7 +111,7 @@ calc_mean_conf_interval <- function(x, s = sd(x), lvl = 0.95) {
 ```{r}
 ITERATIONS <- 10L
 dataset_paths <- list.dirs("../datasets", full.names = TRUE, recursive = FALSE) %>%
-    .[order(as.numeric(gsub(".*/", "", .)))] %>% .[6]
+    .[order(as.numeric(gsub(".*/", "", .)))] %>% .[7]
 
 for (i in seq_along(processors)) {
     
@@ -122,11 +125,8 @@ for (i in seq_along(processors)) {
         dataset_size <- as.integer(strsplit(dataset_path, "/")[[1]][3])
         logger::log_info("Benchmarking dataset size {dataset_size}")
 
-        benchmark_result <- # TODO: possibly need a tryCatch for out of memory errors
-            bench::mark(
-                processor(dataset_path), iterations = ITERATIONS, memory = TRUE
-            )
-
+        # TODO: possibly need a tryCatch for out of memory errors
+        benchmark_result <- bench::mark(processor(dataset_path), iterations = ITERATIONS)
         benchmark_record <-
             get_bench_record(benchmark_result) %>%
             dplyr::mutate(dataset_size = dataset_size) %>%
