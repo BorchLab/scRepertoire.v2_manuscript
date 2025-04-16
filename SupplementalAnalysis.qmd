@@ -8,8 +8,7 @@ editor: visual
 
 ```{r message=FALSE, warning=FALSE, echo=T, results='hide'}
 # Define required libraries
-packages <- c(
-  "Azimuth", "BiocParallel", "celldex", "dplyr", "ggplot2", "ggthemes", "harmony", "igraph", "patchwork", "RColorBrewer", "scDblFinder", "scGate", "scRepertoire", "scran", "scplotter", "Seurat", "SeuratData", "SingleR", "stringr", "Trex", "viridis"
+packages <- c("Azimuth", "BiocParallel", "celldex", "dplyr", "ggplot2", "ggthemes", "harmony", "igraph", "patchwork", "RColorBrewer", "scDblFinder", "scGate", "scRepertoire", "scplotter", "scran", "Seurat", "SeuratData", "SingleR", "stringr", "Trex", "viridis"
 )
 
 # Suppress startup messages
@@ -34,6 +33,88 @@ options(future.globals.maxSize = 8000 * 1024^2)
 # Load General Helper Functions
 source("R/helper.R")
 source("R/processing.R")
+```
+
+## Benchmarking Analysis
+
+```{r}
+benchmark.files <- list.files("./inputs/supplemental/combineTCR-benchmark/results", 
+                              full.names = TRUE)
+pipeline <- benchmark.files <- list.files("./inputs/supplemental/combineTCR-benchmark/results")
+pipeline <- stringr::str_remove(pipeline, ".csv")
+
+benchmarks <- lapply(benchmark.files, read.csv)
+names(benchmarks) <- pipeline
+
+benchmarks <- bind_rows(benchmarks, .id = "pipeline")
+
+benchmarks <- benchmarks %>%
+  mutate(
+times_in_seconds <- case_when(
+  str_detect(median, "ms$") ~ as.numeric(str_remove(median, "ms"))/1000,
+  str_detect(median, "s$") ~ as.numeric(str_remove(median, "s")),
+  str_detect(median, "m$") ~ as.numeric(str_remove(median, "m")) * 60,
+  TRUE ~ NA_real_
+))
+
+
+benchmarks <- benchmarks %>%
+  mutate(
+    times_in_seconds = case_when(
+      str_detect(median, "ms$") ~ as.numeric(str_remove(median, "ms")) / 1000,
+      str_detect(median, "s$")  ~ as.numeric(str_remove(median, "s")),
+      str_detect(median, "m$")  ~ as.numeric(str_remove(median, "m")) * 60,
+      TRUE ~ NA_real_
+    )
+  )
+
+benchmarks <- benchmarks %>%
+  mutate(
+    mem_mb = case_when(
+      str_detect(mem_alloc, "MB$") ~ as.numeric(str_remove(mem_alloc, "MB")),
+      str_detect(mem_alloc, "GB$") ~ as.numeric(str_remove(mem_alloc, "GB")) * 1024,
+      TRUE ~ NA_real_
+    )
+  )
+
+# Runtime plot
+p1 <- ggplot(benchmarks, aes(x = dataset_size, y = times_in_seconds)) + 
+  geom_line(aes(color = pipeline), linewidth = 1) + 
+  scale_color_viridis(discrete = TRUE, option = "D") + 
+  scale_y_log10() + 
+  labs(
+    title = "Benchmark Runtime",
+    x = "Dataset Size",
+    y = "Execution Time (seconds)",
+    color = "Pipeline"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold"),
+    legend.position = "top"
+  )
+
+# Memory plot
+p2 <- ggplot(benchmarks, aes(x = dataset_size, y = mem_mb)) + 
+  geom_line(aes(color = pipeline), linewidth = 1) + 
+  scale_color_viridis(discrete = TRUE, option = "D") + 
+  scale_y_log10() + 
+  labs(
+    title = "Benchmark Memory Usage",
+    x = "Dataset Size",
+    y = "Memory Allocated (MB)",
+    color = "Pipeline"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold"),
+    legend.position = "none"  # Hide repeated legend
+  )
+
+# Combine with patchwork
+p1 + p2 + plot_layout(guides = "collect") & theme(legend.position = "bottom")
+ggsave("output/viz/SupplementalFig1.pdf", height = 4, width = 8)
+
 ```
 
 ## Paley Cohort
