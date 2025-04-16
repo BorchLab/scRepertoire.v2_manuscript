@@ -1,8 +1,10 @@
 from anndata import AnnData
 from scirpy.io import read_10x_vdj
+import sys
 import logging
 logger = logging.getLogger(__name__)
 
+sys.path.append("../")
 from benchmarker import benchmark_vdj_loader
 
 
