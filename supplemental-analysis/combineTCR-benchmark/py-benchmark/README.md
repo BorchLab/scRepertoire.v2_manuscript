@@ -3,7 +3,9 @@
 - [x] get time benchmarking to work
 - [ ] get memory benchmarking to work
 
-- [ ] dandelion
+- [~] dandelion
+    - [~] time
+    - [ ] memory
 - [ ] immcantation (Python)?
 - [~] scirpy
     - [x] time
