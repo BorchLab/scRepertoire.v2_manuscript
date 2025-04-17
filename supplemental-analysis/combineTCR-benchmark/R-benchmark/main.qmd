@@ -21,19 +21,19 @@ suppressPackageStartupMessages({
 library(scRepertoire1)
 library(scRepertoire)
 library(immunarch)
-library(Platypus)
+# library(Platypus)
 
 })
 
 # create list of of TCR data loader functions to be benchmarked
 processors <- list(
-    # scRepertoire1_mb = function(dataset_folder) {
-    #     scRepertoire1::combineTCR(scRepertoire1::loadContigs(dataset_folder))
-    # },
-    # scRepertoire2_mb = function(dataset_folder) {
-    #     scRepertoire::combineTCR(scRepertoire::loadContigs(dataset_folder))
-    # },
-    immunarch_mb = function(dataset_folder) {
+    scRepertoire1 = function(dataset_folder) {
+        scRepertoire1::combineTCR(scRepertoire1::loadContigs(dataset_folder))
+    },
+    scRepertoire2_mb = function(dataset_folder) {
+        scRepertoire::combineTCR(scRepertoire::loadContigs(dataset_folder))
+    },
+    immunarch = function(dataset_folder) {
         immunarch::repLoad(paste0(dataset_folder, "/filtered_contig_annotation.csv"))
     }#,
     # platypus = function(dataset_folder) {
@@ -55,7 +55,7 @@ processors <- list(
 ```
 
 ```{r}
-DATASET_DIR <- "../datasets/"
+DATASET_DIR <- "../datasets"
 
 #' assuming b is a bench::mark result for a single expression,
 #' return a 1 row data.frame of the results
@@ -118,7 +118,7 @@ calc_mean_conf_interval <- function(x, s = sd(x), lvl = 0.95) {
 ```{r}
 ITERATIONS <- 10L
 dataset_paths <- list.dirs(DATASET_DIR, full.names = TRUE, recursive = FALSE) %>%
-    .[order(as.numeric(gsub(".*/", "", .)))] %>% .[6:length(.)]
+    .[order(as.numeric(gsub(".*/", "", .)))] %>% .[7]
 
 for (i in seq_along(processors)) {
     
@@ -145,34 +145,4 @@ for (i in seq_along(processors)) {
     
     logger::log_success("Completed Benchmarking of {names(processors)[i]}")
 }
-```
-
-```{r}
-sessionInfo()
-```
-
-```{r}
-i <- 1
-    
-logger::log_info("Starting Benchmarking of {names(processors)[i]}")
-processor <- processors[[i]]
-output_filename <- paste0("../results/", names(processors)[i], ".csv")
-benchmark_results <- data.frame()
-dataset_path <- dataset_paths[6]
-
-#gc(verbose = FALSE)
-dataset_size <- as.integer(strsplit(dataset_path, "/")[[1]][3])
-logger::log_info("Benchmarking dataset size {dataset_size}")
-
-# TODO: possibly need a tryCatch for out of memory errors
-benchmark_result <- bench::bench_memory(processor(dataset_path))
-print(as_bench_bytes(get_peak_memory_bytes(benchmark_result)))
-# benchmark_record <-
-#     data.frame(mem_alloc = benchmark_result$mem_alloc, peak_mem_alloc = as.character(max(benchmark_result$memory[[1]]$bytes))) %>%
-#     dplyr::mutate(dataset_size = dataset_size) %>%
-#     dplyr::relocate(dataset_size)
-
-# benchmark_results %<>% rbind(benchmark_record)
-# data.table::fwrite(benchmark_results, output_filename)
-# logger::log_success("Completed Benchmarking dataset size {dataset_size}")
 ```
