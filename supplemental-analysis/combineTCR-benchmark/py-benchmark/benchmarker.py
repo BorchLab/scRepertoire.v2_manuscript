@@ -5,20 +5,20 @@ import numpy as np
 from scipy.stats import t
 import os
 import logging
-# import gc, tracemalloc
+import gc, tracemalloc
 
 
 def benchmark_vdj_loader(
-    func: Callable, output_filename: str, iterations: int=10, 
+    vdj_func: Callable, output_filename: str, iterations: int=10, 
     dataset_dir: str = "../../datasets/",
 ) -> pd.DataFrame:
     """Benchmark a vdj data loader
 
     Args:
-        func (Callable): must be a single argument function that takes in the directory
+        vdj_func (Callable): must be a single argument function that takes in the directory
         of the vdj dataset to load.
         output_filename (str): the output csv filename to save results
-        iterations (int, optional): Number of runtime benchmark runs. Defaults to 10.
+        iterations (int, optional): Number of runtime benchmark runs. If this value is 0, then only memory is benchmarked. Defaults to 10.
         dataset_dir (str, optional): The top directory of all datasets. Defaults to "../../datasets/".
 
     Returns:
@@ -34,7 +34,7 @@ def benchmark_vdj_loader(
         full_dataset_subdir = os.path.join(dataset_dir, dataset_subdir)
         
         logging.info(f"Processing dataset of size {dataset_size}...")
-        benchmark_record = benchmark(func, full_dataset_subdir, iterations=iterations)
+        benchmark_record = benchmark(lambda: vdj_func(full_dataset_subdir), iterations=iterations)
         benchmark_record.insert(0, "dataset_size", dataset_size)
         benchmark_results = pd.concat([benchmark_results, benchmark_record], ignore_index=True)
         benchmark_results.to_csv(output_filename, index=False)
@@ -43,15 +43,26 @@ def benchmark_vdj_loader(
     return benchmark_results
     
 
-def benchmark(func: Callable, *args, iterations: int=10, **kwargs) -> pd.DataFrame:
+def benchmark(func: Callable, iterations: int=10) -> pd.DataFrame:
+    """Benchmark a no-argument function
+
+    Args:
+        func (Callable): A pure 0 argument function
+        iterations (int, optional): Number of runtime benchmarking iterations. Defaults to 10.
+
+    Returns:
+        pd.DataFrame: 1 row benchmark result dataframe
+    """
+    if not iterations:
+        return benchmark_memory(func)
     return pd.concat([
-        benchmark_runtime(func, *args, iterations=iterations, **kwargs),
-        benchmark_memory(func, *args, **kwargs)
+        benchmark_runtime(func, iterations=iterations),
+        benchmark_memory(func)
     ], axis=1)
 
-def benchmark_runtime(func: Callable, *args, iterations: int=10, **kwargs) -> pd.DataFrame:
+def benchmark_runtime(func: Callable, iterations: int=10) -> pd.DataFrame:
 
-    times = np.array(timeit.repeat(lambda: func(*args, **kwargs), number=1, repeat=iterations))
+    times = np.array(timeit.repeat(func, number=1, repeat=iterations))
 
     benchmark_record = pd.DataFrame([{
         "min": as_bench_time(times.min()),
@@ -90,10 +101,22 @@ def confidence_interval(sd: float, n: int, alpha: float = 0.05) -> float:
     return t.ppf(1 - (alpha / 2), n - 1) * (sd / np.sqrt(n)) if n > 1 else 0.0
 
 
-def benchmark_memory(func: Callable, *args, **kwargs) -> pd.DataFrame:
+def benchmark_memory(func: Callable) -> pd.DataFrame:
     
-    # TODO implement memory profiling like R's bench::bench_memory()
-    allocation_bytes = [0]
+    gc.collect()
+    tracemalloc.start()
+    snapshot_start = tracemalloc.take_snapshot()
+    result = func()
+    snapshot_end = tracemalloc.take_snapshot()
+    tracemalloc.stop()
+    
+    global _anchor
+    _anchor = result
+    
+    stats = snapshot_end.compare_to(snapshot_start, 'lineno')
+    allocation_bytes = [stat.size_diff for stat in stats if stat.size_diff > 0]
+    
+    del _anchor
     
     return pd.DataFrame([{
         "mem_alloc": as_bench_bytes(sum(allocation_bytes)),
