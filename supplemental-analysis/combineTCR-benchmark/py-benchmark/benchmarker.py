@@ -5,12 +5,14 @@ import numpy as np
 from scipy.stats import t
 import os
 import logging
-import gc, tracemalloc
+import tracemalloc
 
 
 def benchmark_vdj_loader(
-    vdj_func: Callable, output_filename: str, iterations: int=10, 
-    dataset_dir: str = "../../datasets/",
+    vdj_func: Callable,
+    output_filename: str,
+    iterations: int=10,
+    dataset_dir: str = "../../datasets/"
 ) -> pd.DataFrame:
     """Benchmark a vdj data loader
 
@@ -41,7 +43,7 @@ def benchmark_vdj_loader(
         logging.info(f"Dataset of size {dataset_size} processed.")
     
     return benchmark_results
-    
+
 
 def benchmark(func: Callable, iterations: int=10) -> pd.DataFrame:
     """Benchmark a no-argument function
@@ -102,8 +104,8 @@ def confidence_interval(sd: float, n: int, alpha: float = 0.05) -> float:
 
 
 def benchmark_memory(func: Callable) -> pd.DataFrame:
-    
-    gc.collect()
+    """Benchmark a 0-argument pure function for memory usage"""
+
     tracemalloc.start()
     snapshot_start = tracemalloc.take_snapshot()
     result = func()
