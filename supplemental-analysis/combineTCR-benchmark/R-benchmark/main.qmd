@@ -51,9 +51,6 @@ processors <- list(
     #         get.VDJ.stats = FALSE
     #     )
     # }#,
-    # Immcantation = function(dataset_folder) {
-    # # TODO
-    # }
 )
 ```
 

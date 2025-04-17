@@ -5,7 +5,7 @@ import numpy as np
 from scipy.stats import t
 import os
 import logging
-import tracemalloc
+import gc, tracemalloc
 
 
 def benchmark_vdj_loader(
@@ -106,6 +106,7 @@ def confidence_interval(sd: float, n: int, alpha: float = 0.05) -> float:
 def benchmark_memory(func: Callable) -> pd.DataFrame:
     """Benchmark a 0-argument pure function for memory usage"""
 
+    gc.collect()
     tracemalloc.start()
     snapshot_start = tracemalloc.take_snapshot()
     result = func()
