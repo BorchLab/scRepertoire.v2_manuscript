@@ -1,0 +1,115 @@
+---
+title: "Benchmarking Quantification"
+format: html
+editor: visual
+---
+
+# Setting up
+
+```{r setup, include=FALSE}
+library(magrittr)
+library(bench)
+library(data.table)
+library(purrr)
+library(logger)
+
+# Setting up python
+library(reticulate)
+use_virtualenv("scRepertoire_manuscript")
+scirpy <- import("scirpy", delay_load = TRUE)
+psutil <- import("psutil", delay_load = TRUE)
+time <- import("time", delay_load = TRUE)
+
+
+# Create results directory if it doesn't exist
+dir.create("results", showWarnings = FALSE)
+```
+
+## Define Pipelines
+
+```{r pipelines}
+processors <- list(
+  immunarch = function(ds_path) {
+    immunarch::repLoad(
+      file.path(ds_path, "filtered_contig_annotation.csv"),
+      .mode = "paired", 
+      .coding = FALSE
+    )
+  },
+  scRepertoire2 = function(ds_path) {
+    df <- scRepertoire::loadContigs(input = ds_path)
+    scRepertoire::combineTCR(df)
+  },
+  scRepertoire1 = function(ds_path) {
+    df <- scRepertoire1::loadContigs(dir = ds_path)
+    scRepertoire1::combineTCR(df)
+  }
+ # scirpy = function(ds_path) {
+ #   mem_before <- psutil$Process()$memory_info()$rss
+ #   start <- time$time()
+ #   scirpy$io$read_10x_vdj(file.path(ds_path, "filtered_contig_annotation.csv"))
+ #   end <- time$time()
+ #   mem_after <- psutil$Process()$memory_info()$rss
+#    list(
+#      elapsed = end - start,
+#      mem_mb = (mem_after - mem_before) / 1024^2
+ #   )
+ # }
+)
+```
+
+## Benchmark Loop
+
+```{r benchmark, results='hide'}
+
+dataset_sizes <- as.integer(2000 * 2^(0:9))
+
+# Prepare results table
+benchmark_results <- data.table(
+  pipeline      = character(),
+  dataset_size  = integer(),
+  iteration     = integer(),
+  time_s        = numeric(),
+  mem_MB        = numeric()
+)
+
+for (size in dataset_sizes) {
+  for (rep in 1:10) {
+    ds_dir <- file.path("datasets", size, paste0("replicate", rep))
+    for (pipe in names(processors)) {
+      logger::log_info("Benchmarking {pipe} on {size} clones (replicate {rep})...")
+      if (pipe == "scirpy") {
+        result <- processors[[pipe]](ds_dir)
+        time_s <- result$elapsed
+        mem_MB <- result$mem_mb
+      } else {
+        bm <- bench::mark(
+          processors[[pipe]](ds_dir),
+          iterations = 1,
+          memory     = TRUE
+        )
+        time_s <- as.numeric(bm$time[[1]])
+        mem_MB <- as.numeric(bm$mem_alloc[[1]]) / 1024^2
+      }
+
+      benchmark_results <- rbind(
+        benchmark_results,
+        list(
+          pipeline      = pipe,
+          dataset_size  = size,
+          iteration     = rep,
+          time_s        = time_s,
+          mem_MB        = mem_MB
+        ),
+        use.names = TRUE
+      )
+    }
+  }
+  fwrite(
+    benchmark_results,
+    "results/benchmark_results_all_iterations.csv"
+  )
+}
+```
+
+
