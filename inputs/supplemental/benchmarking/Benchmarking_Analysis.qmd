@@ -13,13 +13,6 @@ library(data.table)
 library(purrr)
 library(logger)
 
-# Setting up python
-library(reticulate)
-scirpy <- import("scirpy", delay_load = TRUE)
-psutil <- import("psutil", delay_load = TRUE)
-time <- import("time", delay_load = TRUE)
-
-
 # Create results directory if it doesn't exist
 dir.create("results", showWarnings = FALSE)
 ```
@@ -29,11 +22,6 @@ dir.create("results", showWarnings = FALSE)
 ```{r eval=FALSE}
 # Loading 10x Contig Data scrapped from GEO
 master.TCR <- readRDS("~/Documents/VaildationContigs.rds")
-
-# Generating sample-specific barcodes
-x <- master.TCR %>%
-        group_by(sample, barcode) %>%
-        summarise(n = n())
 
 dataset_sizes <- as.integer(2000* 2^(0:9))
 
@@ -48,26 +36,45 @@ for (size in dataset_sizes) {
   }
 }
 
-# Generating invidual replicates
+# Output validation replicates
+# Loop is really slow to ensure non-duplicate barcodes from other samples - this breaks vdjdj
+
+# Dictionary of sample/barcode pairs
+x <- master.TCR %>%
+  distinct(barcode, sample)
+
 set.seed(123)
 for (size in dataset_sizes) {
-  for (i in 1:10) {
-    # Sample from `x`
-    sample.idx <- sample(nrow(x), size)
-    sampled_x <- x[sample.idx, ]
+  for (i in seq_len(10)) {
+    # Randomly assign each barcode to only one of its samples
+    lookup <- x %>%
+      group_by(barcode) %>%
+      slice_sample(n = 1) %>%
+      ungroup()
 
-    # Create a key to match on both `sample` and `barcode`
-    sampled_keys <- paste(sampled_x$sample, sampled_x$barcode, sep = "_")
-    master_keys  <- paste(master.TCR$sample, master.TCR$barcode, sep = "_")
+    # Sample exactly `size` barcodes out of that
+    sampled_pairs <- lookup %>%
+      slice_sample(n = size)
 
-    # Filter master.TCR using the composite key
-    replicate <- master.TCR[master_keys %in% sampled_keys, ]
+    # Pull all rows from master.TCR 
+    replicate_df <- master.TCR %>%
+      semi_join(sampled_pairs, by = c("barcode", "sample"))
 
-    # Write to file
+    # write 
     out_dir <- file.path("datasets", size, paste0("replicate", i))
     dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
-    write.csv(replicate, file.path(out_dir, "filtered_contig_annotations.csv"), row.names = FALSE, quote = FALSE)
-    write.csv(replicate, file.path(out_dir, "filtered_contig_annotation.csv"), row.names = FALSE, quote = FALSE)
+    write.csv(
+      replicate_df,
+      file.path(out_dir, "filtered_contig_annotation.csv"),
+      row.names = FALSE,
+      quote = FALSE
+    )
+    write.csv(
+      replicate_df,
+      file.path(out_dir, "filtered_contig_annotations.csv"),
+      row.names = FALSE,
+      quote = FALSE
+    )
   }
 }
 ```
@@ -90,17 +97,9 @@ processors <- list(
   scRepertoire1 = function(ds_path) {
     df <- scRepertoire1::loadContigs(dir = ds_path)
     scRepertoire1::combineTCR(df)
-  #},
-  #scirpy = function(ds_path) {
-  #  mem_before <- psutil$Process()$memory_info()$rss
-  #  start <- time$time()
-  #  scirpy$io$read_10x_vdj(file.path(ds_path, "filtered_contig_annotation.csv"))
-  #  end <- time$time()
-  #  mem_after <- psutil$Process()$memory_info()$rss
-  #  list(
-  #    elapsed = end - start,
-  #    mem_mb = (mem_after - mem_before) / 1024^2
-  #  )
+  },
+  djvdj = function(ds_path) {
+    df <-  djvdj::import_vdj(vdj_dir = ds_path)
   }
 )
 ```
@@ -108,37 +107,46 @@ processors <- list(
 ## Benchmark Loop
 
 ```{r benchmark, results='hide'}
+## Load previous results if they exist
+benchmark_file <- "results/benchmark_results_all_iterations.csv"
 
-dataset_sizes <- as.integer(2000 * 2^(0:9))[1:3] #Only doing small data so far
+if (file.exists(benchmark_file)) {
+  benchmark_results <- fread(benchmark_file)
+} else {
+  benchmark_results <- data.table(
+    pipeline      = character(),
+    dataset_size  = integer(),
+    iteration     = integer(),
+    time_s        = numeric(),
+    mem_MB        = numeric()
+  )
+}
 
-# Prepare results table
-benchmark_results <- data.table(
-  pipeline      = character(),
-  dataset_size  = integer(),
-  iteration     = integer(),
-  time_s        = numeric(),
-  mem_MB        = numeric()
-)
-
+## Benchmark Loop with Checkpointing
 for (size in dataset_sizes) {
   for (rep in 1:10) {
     ds_dir <- file.path("datasets", size, paste0("replicate", rep))
     for (pipe in names(processors)) {
-      logger::log_info("Benchmarking {pipe} on {size} clones (replicate {rep})...")
-      if (pipe == "scirpy") {
-        result <- processors[[pipe]](ds_dir)
-        time_s <- result$elapsed
-        mem_MB <- result$mem_mb
-      } else {
-        bm <- bench::mark(
-          processors[[pipe]](ds_dir),
-          iterations = 1,
-          memory     = TRUE
-        )
-        time_s <- as.numeric(bm$time[[1]])
-        mem_MB <- as.numeric(bm$mem_alloc[[1]]) / 1024^2
+      
+      # Check if this combo is already in the result table
+      already_done <- benchmark_results[
+        pipeline == pipe & dataset_size == size & iteration == rep
+      ]
+      
+      if (nrow(already_done) > 0) {
+        logger::log_info("Skipping {pipe} on {size} clones (replicate {rep}) - already done.")
+        next
       }
-
+      
+      logger::log_info("Benchmarking {pipe} on {size} clones (replicate {rep})...")
+      bm <- bench::mark(
+        processors[[pipe]](ds_dir),
+        iterations = 1,
+        memory     = TRUE
+      )
+      time_s <- as.numeric(bm$time[[1]])
+      mem_MB <- as.numeric(bm$mem_alloc[[1]]) / 1024^2
+      
       benchmark_results <- rbind(
         benchmark_results,
         list(
@@ -150,11 +158,14 @@ for (size in dataset_sizes) {
         ),
         use.names = TRUE
       )
+      
+      # Save after every benchmark to preserve progress
+      fwrite(
+        benchmark_results,
+        benchmark_file
+      )
     }
   }
-  fwrite(
-    benchmark_results,
-    "results/benchmark_results_all_iterations.csv"
-  )
 }
+
 ```
