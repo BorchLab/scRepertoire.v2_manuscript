@@ -15,7 +15,6 @@ library(logger)
 
 # Setting up python
 library(reticulate)
-use_virtualenv("scRepertoire_manuscript")
 scirpy <- import("scirpy", delay_load = TRUE)
 psutil <- import("psutil", delay_load = TRUE)
 time <- import("time", delay_load = TRUE)
@@ -23,6 +22,54 @@ time <- import("time", delay_load = TRUE)
 
 # Create results directory if it doesn't exist
 dir.create("results", showWarnings = FALSE)
+```
+
+## Making Benchmarking Datasets
+
+```{r eval=FALSE}
+# Loading 10x Contig Data scrapped from GEO
+master.TCR <- readRDS("~/Documents/VaildationContigs.rds")
+
+# Generating sample-specific barcodes
+x <- master.TCR %>%
+        group_by(sample, barcode) %>%
+        summarise(n = n())
+
+dataset_sizes <- as.integer(2000* 2^(0:9))
+
+# Output folders for validation/replicates
+for (size in dataset_sizes) {
+  # Create main dataset folder
+  dir.create(file.path("datasets", size), recursive = TRUE, showWarnings = FALSE)
+  
+  # Create replicate subfolders
+  for (i in 1:10) {
+    dir.create(file.path("datasets", size, paste0("replicate", i)), showWarnings = FALSE)
+  }
+}
+
+# Generating invidual replicates
+set.seed(123)
+for (size in dataset_sizes) {
+  for (i in 1:10) {
+    # Sample from `x`
+    sample.idx <- sample(nrow(x), size)
+    sampled_x <- x[sample.idx, ]
+
+    # Create a key to match on both `sample` and `barcode`
+    sampled_keys <- paste(sampled_x$sample, sampled_x$barcode, sep = "_")
+    master_keys  <- paste(master.TCR$sample, master.TCR$barcode, sep = "_")
+
+    # Filter master.TCR using the composite key
+    replicate <- master.TCR[master_keys %in% sampled_keys, ]
+
+    # Write to file
+    out_dir <- file.path("datasets", size, paste0("replicate", i))
+    dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+    write.csv(replicate, file.path(out_dir, "filtered_contig_annotations.csv"), row.names = FALSE, quote = FALSE)
+    write.csv(replicate, file.path(out_dir, "filtered_contig_annotation.csv"), row.names = FALSE, quote = FALSE)
+  }
+}
 ```
 
 ## Define Pipelines
