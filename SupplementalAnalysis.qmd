@@ -38,15 +38,9 @@ source("R/processing.R")
 ## Benchmarking Analysis
 
 ```{r}
-benchmark.files <- list.files("./inputs/supplemental/combineTCR-benchmark/results", 
-                              full.names = TRUE)
-pipeline <- benchmark.files <- list.files("./inputs/supplemental/combineTCR-benchmark/results")
-pipeline <- stringr::str_remove(pipeline, ".csv")
 
-benchmarks <- lapply(benchmark.files, read.csv)
-names(benchmarks) <- pipeline
 
-benchmarks <- bind_rows(benchmarks, .id = "pipeline")
+benchmarks <- read.csv("./inputs/supplemental/benchmarking/results/benchmark_results_all_iterations.csv")
 
 benchmarks <- benchmarks %>%
   mutate(
@@ -57,59 +51,48 @@ times_in_seconds <- case_when(
   TRUE ~ NA_real_
 ))
 
-
-benchmarks <- benchmarks %>%
-  mutate(
-    times_in_seconds = case_when(
-      str_detect(median, "ms$") ~ as.numeric(str_remove(median, "ms")) / 1000,
-      str_detect(median, "s$")  ~ as.numeric(str_remove(median, "s")),
-      str_detect(median, "m$")  ~ as.numeric(str_remove(median, "m")) * 60,
-      TRUE ~ NA_real_
-    )
+summary_df <- benchmarks %>%
+  group_by(pipeline, dataset_size) %>%
+  summarise(
+    elapsed_median = median(time_s),
+    elapsed_lower  = quantile(time_s, 0.025),
+    elapsed_upper  = quantile(time_s, 0.975),
+    
+    memory_median  = median(mem_MB),
+    memory_lower   = quantile(mem_MB, 0.025),
+    memory_upper   = quantile(mem_MB, 0.975),
+    .groups = "drop"
   )
 
-benchmarks <- benchmarks %>%
-  mutate(
-    mem_mb = case_when(
-      str_detect(mem_alloc, "MB$") ~ as.numeric(str_remove(mem_alloc, "MB")),
-      str_detect(mem_alloc, "GB$") ~ as.numeric(str_remove(mem_alloc, "GB")) * 1024,
-      TRUE ~ NA_real_
-    )
-  )
-
-# Runtime plot
-p1 <- ggplot(benchmarks, aes(x = dataset_size, y = times_in_seconds)) + 
-  geom_line(aes(color = pipeline), linewidth = 1) + 
-  scale_color_viridis(discrete = TRUE, option = "D") + 
-  scale_y_log10() + 
-  labs(
-    title = "Benchmark Runtime",
+# Runtime
+p1 <- ggplot(summary_df, aes(x = dataset_size, 
+                             y = elapsed_median)) +
+  geom_line(aes(color = pipeline), size = 0.5) +
+  geom_ribbon(aes(ymin = elapsed_lower, ymax = elapsed_upper, fill = pipeline), alpha = 0.2) +
+  labs(title = "Benchmark Runtime",
     x = "Dataset Size",
     y = "Execution Time (seconds)",
-    color = "Pipeline"
-  ) +
-  theme_minimal() +
-  theme(
-    plot.title = element_text(face = "bold"),
-    legend.position = "top"
-  )
+    color = "Pipeline") + 
+  guides(fill = "none") + 
+  scale_y_log10() + 
+  scale_color_viridis(discrete = TRUE) + 
+  scale_fill_viridis(discrete = TRUE) + 
+  theme_minimal()
 
 # Memory plot
-p2 <- ggplot(benchmarks, aes(x = dataset_size, y = mem_mb)) + 
-  geom_line(aes(color = pipeline), linewidth = 1) + 
-  scale_color_viridis(discrete = TRUE, option = "D") + 
-  scale_y_log10() + 
-  labs(
-    title = "Benchmark Memory Usage",
+p2 <- ggplot(summary_df, aes(x = dataset_size, 
+                             y = memory_median)) +
+  geom_line(aes(color = pipeline), size = 0.5) +
+  geom_ribbon(aes(ymin = memory_lower, ymax = memory_upper, fill = pipeline), alpha = 0.2) +
+  labs(title = "Benchmark Memory Usage",
     x = "Dataset Size",
     y = "Memory Allocated (MB)",
-    color = "Pipeline"
-  ) +
-  theme_minimal() +
-  theme(
-    plot.title = element_text(face = "bold"),
-    legend.position = "none"  # Hide repeated legend
-  )
+    color = "Pipeline") + 
+  guides(fill = "none") + 
+  scale_y_log10() + 
+  scale_color_viridis(discrete = TRUE) + 
+  scale_fill_viridis(discrete = TRUE) + 
+  theme_minimal()
 
 # Combine with patchwork
 p1 + p2 + plot_layout(guides = "collect") & theme(legend.position = "bottom")

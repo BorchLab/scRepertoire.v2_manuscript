@@ -43,18 +43,18 @@ processors <- list(
   scRepertoire1 = function(ds_path) {
     df <- scRepertoire1::loadContigs(dir = ds_path)
     scRepertoire1::combineTCR(df)
+  #},
+  #scirpy = function(ds_path) {
+  #  mem_before <- psutil$Process()$memory_info()$rss
+  #  start <- time$time()
+  #  scirpy$io$read_10x_vdj(file.path(ds_path, "filtered_contig_annotation.csv"))
+  #  end <- time$time()
+  #  mem_after <- psutil$Process()$memory_info()$rss
+  #  list(
+  #    elapsed = end - start,
+  #    mem_mb = (mem_after - mem_before) / 1024^2
+  #  )
   }
- # scirpy = function(ds_path) {
- #   mem_before <- psutil$Process()$memory_info()$rss
- #   start <- time$time()
- #   scirpy$io$read_10x_vdj(file.path(ds_path, "filtered_contig_annotation.csv"))
- #   end <- time$time()
- #   mem_after <- psutil$Process()$memory_info()$rss
-#    list(
-#      elapsed = end - start,
-#      mem_mb = (mem_after - mem_before) / 1024^2
- #   )
- # }
 )
 ```
 
@@ -62,7 +62,7 @@ processors <- list(
 
 ```{r benchmark, results='hide'}
 
-dataset_sizes <- as.integer(2000 * 2^(0:9))
+dataset_sizes <- as.integer(2000 * 2^(0:9))[1:3] #Only doing small data so far
 
 # Prepare results table
 benchmark_results <- data.table(
@@ -111,5 +111,3 @@ for (size in dataset_sizes) {
   )
 }
 ```
-
-
