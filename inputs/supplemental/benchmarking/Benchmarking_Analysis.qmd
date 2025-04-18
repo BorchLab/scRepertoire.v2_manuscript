@@ -45,22 +45,34 @@ x <- master.TCR %>%
 
 set.seed(123)
 for (size in dataset_sizes) {
+ # randomly assign each barcode to only one of its samples
+      lookup <- x %>%
+        group_by(barcode) %>%
+        slice_sample(n = 1) %>%
+        ungroup()
+      
   for (i in seq_len(10)) {
-    # Randomly assign each barcode to only one of its samples
-    lookup <- x %>%
+
+    # 2) sample exactly `size` barcodes out of that
+    sampled_pairs <- lookup %>%
+      slice_sample(n = size) %>% 
       group_by(barcode) %>%
-      slice_sample(n = 1) %>%
+        slice_sample(n = 1) %>%
+        ungroup()
+
+    # 3) pull all rows from master.TCR for those (barcode, sample) pairs
+    replicate_df <- master.TCR %>%
+      semi_join(sampled_pairs, by = c("barcode", "sample")) %>% 
+      filter(chain %in% c("TRA", "TRB")) %>%
+      group_by(barcode, chain) %>%
+      slice_max(order_by = reads, n=1) %>%
+      unique() %>% 
+      ungroup %>%
+      group_by(barcode) %>%
+      mutate(raw_clonotype_id = cur_group_id()) %>%
       ungroup()
 
-    # Sample exactly `size` barcodes out of that
-    sampled_pairs <- lookup %>%
-      slice_sample(n = size)
-
-    # Pull all rows from master.TCR 
-    replicate_df <- master.TCR %>%
-      semi_join(sampled_pairs, by = c("barcode", "sample"))
-
-    # write 
+    # write it out
     out_dir <- file.path("datasets", size, paste0("replicate", i))
     dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
     write.csv(
