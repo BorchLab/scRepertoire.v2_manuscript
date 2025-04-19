@@ -17,7 +17,7 @@ library(logger)
 dir.create("results", showWarnings = FALSE)
 ```
 
-## Making Benchmarking Datasets
+## Making Benchmarking Data Sets
 
 ```{r eval=FALSE}
 # Loading 10x Contig Data scrapped from GEO
@@ -119,6 +119,8 @@ processors <- list(
 ## Benchmark Loop
 
 ```{r benchmark, results='hide'}
+dataset_sizes <- as.integer(2000* 2^(0:9))
+
 ## Load previous results if they exist
 benchmark_file <- "results/benchmark_results_all_iterations.csv"
 
@@ -134,13 +136,25 @@ if (file.exists(benchmark_file)) {
   )
 }
 
-## Benchmark Loop with Checkpointing
+# Track warm-ups to avoid repeating them
+warmup_done <- data.table(
+  pipeline = character(),
+  dataset_size = integer()
+)
+
 for (size in dataset_sizes) {
   for (rep in 1:10) {
     ds_dir <- file.path("datasets", size, paste0("replicate", rep))
     for (pipe in names(processors)) {
       
-      # Check if this combo is already in the result table
+      # Geometric scaling --> scRepertoire cannot combine 
+      #512000 on local machine
+      if (pipe == "scRepertoire1" & size > 256000) {
+        logger::log_info("Skipping {pipe} on {size} clones (replicate {rep}) - exceeds memory limit.")
+        next
+      }
+      
+      # Check if this combo exists
       already_done <- benchmark_results[
         pipeline == pipe & dataset_size == size & iteration == rep
       ]
@@ -149,7 +163,16 @@ for (size in dataset_sizes) {
         logger::log_info("Skipping {pipe} on {size} clones (replicate {rep}) - already done.")
         next
       }
-      
+
+      # WARM-UP: once per pipeline + dataset size 
+      if (nrow(warmup_done[pipeline == pipe & dataset_size == size]) == 0) {
+        logger::log_info("Warming up {pipe} on {size} clones...")
+        invisible(processors[[pipe]](ds_dir))
+        gc()  # optional: clear memory after warm-up
+        warmup_done <- rbind(warmup_done, data.table(pipeline = pipe, dataset_size = size))
+      }
+
+      # Actual benchmark
       logger::log_info("Benchmarking {pipe} on {size} clones (replicate {rep})...")
       bm <- bench::mark(
         processors[[pipe]](ds_dir),
@@ -158,7 +181,7 @@ for (size in dataset_sizes) {
       )
       time_s <- as.numeric(bm$time[[1]])
       mem_MB <- as.numeric(bm$mem_alloc[[1]]) / 1024^2
-      
+
       benchmark_results <- rbind(
         benchmark_results,
         list(
@@ -170,8 +193,8 @@ for (size in dataset_sizes) {
         ),
         use.names = TRUE
       )
-      
-      # Save after every benchmark to preserve progress
+
+      # Save after every benchmark 
       fwrite(
         benchmark_results,
         benchmark_file
@@ -179,5 +202,6 @@ for (size in dataset_sizes) {
     }
   }
 }
+
 
 ```
