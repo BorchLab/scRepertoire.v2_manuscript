@@ -252,3 +252,6 @@ inputs/supplemental/additionalCohorts/Borcherding2024/s368.01a_d201_2/filtered_c
 inputs/supplemental/additionalCohorts/Borcherding2024/s368.01a_d201_1/filtered_contig_annotations.csv
 inputs/supplemental/additionalCohorts/Borcherding2024/s368.01a_d110_2/filtered_contig_annotations.csv
 inputs/supplemental/additionalCohorts/Borcherding2024/s368.01a_d110_1/filtered_contig_annotations.csv
+.vscode/
+dev/
+supplemental-analysis/
