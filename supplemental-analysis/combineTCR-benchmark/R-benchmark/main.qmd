@@ -30,7 +30,7 @@ processors <- list(
     scRepertoire1 = function(dataset_folder) {
         scRepertoire1::combineTCR(scRepertoire1::loadContigs(dataset_folder))
     },
-    scRepertoire2_mb = function(dataset_folder) {
+    scRepertoire2 = function(dataset_folder) {
         scRepertoire::combineTCR(scRepertoire::loadContigs(dataset_folder))
     },
     immunarch = function(dataset_folder) {
