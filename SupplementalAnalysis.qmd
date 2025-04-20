@@ -42,14 +42,6 @@ source("R/processing.R")
 
 benchmarks <- read.csv("./inputs/supplemental/benchmarking/results/benchmark_results_all_iterations.csv")
 
-benchmarks <- benchmarks %>%
-  mutate(
-times_in_seconds <- case_when(
-  str_detect(median, "ms$") ~ as.numeric(str_remove(median, "ms"))/1000,
-  str_detect(median, "s$") ~ as.numeric(str_remove(median, "s")),
-  str_detect(median, "m$") ~ as.numeric(str_remove(median, "m")) * 60,
-  TRUE ~ NA_real_
-))
 
 summary_df <- benchmarks %>%
   group_by(pipeline, dataset_size) %>%
